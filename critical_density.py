@@ -1,7 +1,7 @@
 '''
 Calculation for critical density of molecular lines. 
 
-Based on the collisonal rate data from Lamda database 
+Based on the collisional rate data from Lamda database 
 
 http://home.strw.leidenuniv.nl/~moldata/
 
