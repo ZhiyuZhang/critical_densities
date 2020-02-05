@@ -1,10 +1,14 @@
 # critical_densities
 
-Calculation for critical densities of molecular lines.
+Calculation for critical densities of molecular lines, under optically thin assumption, following Shirley (2016 PASP, 127, 299).
+
+https://arxiv.org/abs/1501.01629
 
 Based on the collisional rate data from LAMDA database
 
 http://home.strw.leidenuniv.nl/~moldata/
+
+
 
 
 Usage:
