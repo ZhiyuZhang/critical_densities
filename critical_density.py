@@ -127,13 +127,7 @@ def Sigma_gamma_pre(J_low,T, T_list, Co, Cp, freq, op):
         i     = np.where(Cp[:,1]     == J_low+1)[0]
         k     = np.where(T_list      == T      )[0]+3  
         cij   = Cp[i,k]
-        print(i)
-        print("           ")
-        print(k)
-        print("           ")
-        print(cij)
         S     = np.sum(cij)
-#       S     = 0
         return S
 
 
@@ -141,6 +135,7 @@ def ncrit(molecule, J_low, T, op_ratio, verbose):
     T_list, Cp, Co, A, freq, Eu = input(molecule) 
     ncrit_o = A[J_low] / (np.sum(gamma(J_low,T,T_list,Co,Cp,freq,'o')) + Sigma_gamma_pre(J_low,T,T_list,Co,Cp,freq,'o'))
     ncrit_p = A[J_low] / (np.sum(gamma(J_low,T,T_list,Co,Cp,freq,'p')) + Sigma_gamma_pre(J_low,T,T_list,Co,Cp,freq,'p'))
+
     ncrit   = (op_ratio * ncrit_o + 1 * ncrit_p )/(op_ratio+1)  
     trans     = "J="+str(J_low+1)+"-"+str(J_low)
     transition = trans.replace(" ", "")
