@@ -80,8 +80,10 @@ def input(molecule, ):
 
     T_list = np.genfromtxt(filename, skip_header = T_row_skip,max_rows    = 1)
 #   print(T_list)
+#   collisional coefficient for para-H2 
     Cp     = np.genfromtxt(filename, skip_header = Cp_row_beg, max_rows= Cp_row_read)
 #   print(Cp.shape)
+#   collisional coefficient for ortho-H2 
     Co     = np.genfromtxt(filename, skip_header = Co_row_beg,  max_rows= Co_row_read) 
 #   print(Co.shape)
     header = np.genfromtxt(filename, skip_header = hd_row_beg,  max_rows= hd_row_read) 
@@ -116,17 +118,30 @@ def Cr(J_low, T, T_list, Co, Cp, ortho_para):
     return cij
 
 
-def gamma(J_low,T, T_list, Co, Cp, freq,op): 
+def gamma(J_low,T, T_list, Co, Cp, freq, op): 
     gamma_ij= g(J_low+1) / g(J_low)  * Cr(J_low,T, T_list,Co,Cp,op) * np.exp( -1. * h * freq[J_low] / (k * T))
     return gamma_ij 
 
 
+def Sigma_gamma_pre(J_low,T, T_list, Co, Cp, freq, op):
+        i     = np.where(Cp[:,1]     == J_low+1)[0]
+        k     = np.where(T_list      == T      )[0]+3  
+        cij   = Cp[i,k]
+        print(i)
+        print("           ")
+        print(k)
+        print("           ")
+        print(cij)
+        S     = np.sum(cij)
+#       S     = 0
+        return S
 
-def ncrit(molecule, J_low, T, op_ratio,verbose): 
+
+def ncrit(molecule, J_low, T, op_ratio, verbose): 
     T_list, Cp, Co, A, freq, Eu = input(molecule) 
-    ncrit_o = A[J_low] / np.sum(gamma(J_low,T,T_list,Co,Cp,freq,'o'))
-    ncrit_p = A[J_low] / np.sum(gamma(J_low,T,T_list,Co,Cp,freq,'p'))
-    ncrit = (op_ratio * ncrit_o + 1 * ncrit_p )/(op_ratio+1)  
+    ncrit_o = A[J_low] / (np.sum(gamma(J_low,T,T_list,Co,Cp,freq,'o')) + Sigma_gamma_pre(J_low,T,T_list,Co,Cp,freq,'o'))
+    ncrit_p = A[J_low] / (np.sum(gamma(J_low,T,T_list,Co,Cp,freq,'p')) + Sigma_gamma_pre(J_low,T,T_list,Co,Cp,freq,'p'))
+    ncrit   = (op_ratio * ncrit_o + 1 * ncrit_p )/(op_ratio+1)  
     trans     = "J="+str(J_low+1)+"-"+str(J_low)
     transition = trans.replace(" ", "")
     if verbose: 
