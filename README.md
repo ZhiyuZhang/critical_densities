@@ -83,3 +83,50 @@ Some Shirley table entries use extrapolated rates when the LAMDA grid does not i
 
 The `op_ratio` argument only matters when separate ortho-H2 and para-H2 collision partners are present, as in the CO isotopologue files. For files with a single H2, He-scaled-H2, or He-like neutral partner, that partner is used with weight 1.
 
+## HFS-Resolved Critical Density
+
+For hyperfine-resolved files such as `cn-hfs.dat`, use the separate script:
+
+```bash
+python critical_density_hfs.py \
+    --data cn-hfs.dat \
+    --species CN \
+    --partner p-H2 \
+    --temperatures 5,10,15,20,25,30,35,40,45,50 \
+    --require-hfs-collisions \
+    --out outputs \
+    --verbose
+```
+
+The HFS script computes a level-based critical density:
+
+```text
+ncrit(u; Tk) = A_tot(u) / gamma_tot(u; Tk)
+A_tot(u) = sum_l A_ul
+gamma_tot(u; Tk) = sum_i gamma_ui(Tk)
+```
+
+Here `u` is an HFS level such as CN `(N,J,F)`. Multiple satellite components with the same upper level share the same `ncrit`; their individual `A_ul` values only define branching ratios.
+
+The script writes:
+
+```text
+level_ncrit.csv
+transition_branches.csv
+```
+
+`level_ncrit.csv` has one row per upper HFS level and temperature. It includes `upper_group`, for example `N=1`, `N=2`, and `N=3` for CN, so HFS sublevels remain easy to scan by parent rotational level. `transition_branches.csv` has one row per radiative component and includes `branching_ratio = A_ul / A_tot`.
+
+The script does not silently mix para-H2 and ortho-H2. Select one partner with `--partner p-H2` or `--partner o-H2`, or explicitly request a mixture:
+
+```bash
+python critical_density_hfs.py \
+    --data cn-hfs.dat \
+    --species CN \
+    --h2-opr 3 \
+    --temperatures 5,10,15,20,25,30,35,40,45,50 \
+    --require-hfs-collisions \
+    --out outputs
+```
+
+Temperature interpolation uses log-log interpolation for strictly positive collision rates. Temperatures outside the tabulated range raise an error unless `--allow-extrapolation` is supplied, in which case the CSV warnings field marks the extrapolation.

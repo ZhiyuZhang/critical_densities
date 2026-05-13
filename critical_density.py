@@ -221,6 +221,11 @@ def _mixed_collision_sum(level, temperature, partners, levels, op_ratio):  # Sum
 
 
 def _transition_from_request(data, j_low=None, transition_index=None, upper=None, lower=None):  # Resolve the target radiative transition.
+    explicit_transition = transition_index is not None or upper is not None or lower is not None  # Check whether the caller used explicit level/transition selectors.
+    if j_low is not None and explicit_transition:  # Mixing J_low with explicit selectors is ambiguous for CN/fine/HFS-like files.
+        raise ValueError("Do not mix J_low with transition_index or upper/lower; choose exactly one transition selector.")  # Fail loudly instead of silently ignoring J_low.
+    if (upper is None) != (lower is None):  # Upper and lower level selectors must be supplied as a pair.
+        raise ValueError("Provide both upper and lower, or neither.")  # Explain the paired selector requirement.
     if transition_index is not None:  # Let users address complex spectra by LAMDA transition index.
         for transition in data.radiative:  # Search radiative transitions.
             if transition.index == transition_index:  # Match the requested transition index.
