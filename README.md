@@ -1,35 +1,85 @@
 # critical_densities
 
-Calculation for critical densities of molecular lines, under optically thin assumption, following Shirley (2016 PASP, 127, 299).
+Calculate optically thin, no-background critical densities following Shirley (2015, PASP, 127, 299):
 
 https://arxiv.org/abs/1501.01629
 
-Based on the collisional rate data from LAMDA database
+The implemented quantity is the Shirley equation (4) multi-level critical density:
 
-http://home.strw.leidenuniv.nl/~moldata/
+```text
+n_crit = A_jk / sum_i gamma_ji
+```
 
+where the denominator includes all collisional depopulation routes out of the upper level `j`. Downward rates are read directly from the LAMDA data files. Upward rates are computed from downward rates with detailed balance, Shirley equation (5):
 
+```text
+gamma_ji = gamma_ij * (g_i / g_j) * exp(-(E_i - E_j) / T_kin)
+```
 
+This code does not calculate `n_eff`, optical-depth corrections, radiative trapping, CMB/background radiation corrections, or dust/IR pumping corrections.
 
-Usage:
+## Data
 
-    from critical_density import *
-    ncrit(molecule,J_low,Tkin,o/p_ratio,verbose)
+The calculations use local LAMDA-style data files in this directory:
 
-Example:
+```text
+12co.dat
+13co.dat
+c18o.dat
+hcn.dat
+hco+.dat
+hnc.dat
+cs.dat
+cn.dat
+```
 
-    from critical_density import *
-    ncrit('HCN',3,100,3,True)
+The parser now reads the LAMDA sections by header text instead of hard-coded row numbers, so small formatting differences between files are handled more safely.
 
-Written by Zhi-Yu Zhang
+## Usage
 
-pmozhang@gmail.com
+From the repository root:
 
-Last update:
-    23 Jan. 2018
+```python
+import sys
+sys.path.insert(0, "critical_densities")
 
+from critical_density import ncrit
 
-Next to do:
+print(ncrit("HCN", 0, 10, 3, False))
+print(ncrit("HCO+", 2, 50, 3, True))
+```
 
-    Interpolate Cij using values from nearby temperatures
-    Currently, only the temperature value from the datafile can be used
+The legacy call signature is still supported:
+
+```python
+ncrit(molecule, J_low, Tkin, op_ratio, verbose)
+```
+
+For simple linear rotors, `J_low=0` means `J=1-0`, `J_low=1` means `J=2-1`, and so on.
+
+For spectra that are not a simple one-level-per-J ladder, such as CN, select the LAMDA radiative transition explicitly:
+
+```python
+ncrit("CN", T=10, transition_index=2)
+ncrit("CN", T=10, upper=3, lower=1)
+```
+
+## Fixes in This Version
+
+- Interpolation is now applied to both downward and upward collision terms.
+- Non-grid temperatures such as 15 K and 25 K no longer drop the downward collision sum.
+- Ortho/para H2 mixing is now done on the collision-rate denominator before dividing by `A_jk`.
+- Data files are found relative to `critical_density.py`, so imports work from the repository root.
+- The old debug `print(S)` output has been removed.
+- The upward-collision sum now uses the actual levels in the file instead of stopping at a hard-coded level index.
+- HNC, CS, and CN are supported through the general LAMDA parser.
+- Electron collision blocks are ignored by default because Shirley Table 1 reports collisions with H2 or H2-scaled neutral partners.
+
+## Notes and Limits
+
+Temperatures must lie within the tabulated range of the selected neutral collision partner. The code interpolates but does not silently extrapolate.
+
+Some Shirley table entries use extrapolated rates when the LAMDA grid does not include a requested temperature. This implementation raises a clear error instead of extrapolating unless the data file itself covers that temperature.
+
+The `op_ratio` argument only matters when separate ortho-H2 and para-H2 collision partners are present, as in the CO isotopologue files. For files with a single H2, He-scaled-H2, or He-like neutral partner, that partner is used with weight 1.
+
