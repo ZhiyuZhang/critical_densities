@@ -130,3 +130,19 @@ python critical_density_hfs.py \
 ```
 
 Temperature interpolation uses log-log interpolation for strictly positive collision rates. Temperatures outside the tabulated range raise an error unless `--allow-extrapolation` is supplied, in which case the CSV warnings field marks the extrapolation.
+
+### HFS Demo Scripts
+
+Small plotting demos are available for CN, HCN, and NH3:
+
+```bash
+python cn_hfs_toy.py
+python hcn_hfs_toy.py
+python nh3_hfs_toy.py
+```
+
+The scripts print the selected HFS components and save bar charts under `outputs/`.
+
+- `cn_hfs_toy.py`: CN `N=1-0`, using `cn-hfs.dat`.
+- `hcn_hfs_toy.py`: HCN `J=1-0`, using `hcn@hfs.dat`; default `Tk=30 K` because that collision table currently spans 5-30 K.
+- `nh3_hfs_toy.py`: p-NH3 `(1,1)` inversion and o-NH3 `1_0-0_0`, using the Loreau et al. p/o-NH3 files; default `Tk=50 K`.

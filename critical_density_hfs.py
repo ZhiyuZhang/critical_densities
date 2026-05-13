@@ -90,11 +90,32 @@ def _read_float_block(lines: list[str], start: int, count: int) -> tuple[np.ndar
 
 
 def _parse_qn_names(level_header: str) -> list[str]:
-    if "+" not in level_header:
+    if "+" in level_header:
+        right_side = level_header.split("+")[-1]
+    elif "|" in level_header:
+        right_side = level_header.split("|")[-1]
+    else:
         return []
-    right_side = level_header.split("+")[-1].replace("(", " ").replace(")", " ")
+    right_side = right_side.replace("(", " ").replace(")", " ")
     names = [token for token in right_side.split() if token.upper() not in {"QNUM", "QNS"}]
     return names
+
+
+def _parse_qn_dict(qn_names: list[str], qn_values: list[str]) -> dict:
+    qn = {}
+    if len(qn_names) == 1 and "_" in qn_names[0] and len(qn_values) == 1:
+        names = qn_names[0].split("_")
+        values = qn_values[0].split("_")
+        return {name: _format_qn_value(value) for name, value in zip(names, values)}
+    if len(qn_names) == 1 and "_" not in qn_names[0] and len(qn_values) == 1 and "_" in qn_values[0]:
+        return {qn_names[0]: qn_values[0]}
+    for name, value in zip(qn_names, qn_values):
+        if "_" in name and "_" in value:
+            for sub_name, sub_value in zip(name.split("_"), value.split("_")):
+                qn[sub_name] = _format_qn_value(sub_value)
+        else:
+            qn[name] = _format_qn_value(value)
+    return qn
 
 
 def _format_qn_value(value: str):
@@ -130,6 +151,9 @@ def _level_group(level: HFSLevel) -> str:
     # Group HFS sublevels by the parent rotational/fine-structure quantum number for easier scanning.
     if "N" in level.qn:
         return f"N={_format_qn_number(level.qn['N'])}"
+    if "J" in level.qn and "K" in level.qn and ("sym" in level.qn or "eps" in level.qn):
+        parity_key = "sym" if "sym" in level.qn else "eps"
+        return f"J={_format_qn_number(level.qn['J'])},K={_format_qn_number(level.qn['K'])},{parity_key}={_format_qn_number(level.qn[parity_key])}"
     if "J" in level.qn and "K" in level.qn:
         return f"J={_format_qn_number(level.qn['J'])},K={_format_qn_number(level.qn['K'])}"
     if "J" in level.qn:
@@ -167,7 +191,7 @@ def load_hfs_molecule(datafile: str | Path, species: str | None = None) -> HFSMo
         parts = row.split()
         level_id = int(parts[0])
         qn_values = parts[3:]
-        qn = {name: _format_qn_value(value) for name, value in zip(qn_names, qn_values)}
+        qn = _parse_qn_dict(qn_names, qn_values)
         label = ",".join(f"{key}={value}" for key, value in qn.items()) or " ".join(qn_values).strip('"')
         # Presence of F in the level quantum numbers is the most robust marker for HFS-resolved levels.
         is_hfs = any(key.upper() == "F" for key in qn)
@@ -186,7 +210,10 @@ def load_hfs_molecule(datafile: str | Path, species: str | None = None) -> HFSMo
     partners = []
     cursor = n_partner_index + 1
     for _ in range(n_partners):
-        marker = _find_marker(lines, cursor, ("COLLISIONS", "BETWEEN"))
+        try:
+            marker = _find_marker(lines, cursor, ("COLLISIONS", "BETWEEN"))
+        except ValueError:
+            marker = _find_marker(lines, cursor, ("COLLISIONS", "WITH"))
         desc_index = _next_data_index(lines, marker + 1)
         description = lines[desc_index].strip()
         n_coll_index = _next_data_index(lines, _find_marker(lines, desc_index + 1, ("NUMBER", "COLL", "TRANS"), ("TEMP",)) + 1)

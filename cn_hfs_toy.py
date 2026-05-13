@@ -22,6 +22,9 @@ CN_DATA = BASE_DIR / "cn-hfs.dat"
 OUTPUT_DIR = BASE_DIR / "outputs"
 CN_DEMO_TK = 10.0
 CN_DEMO_PARTNER = "p-H2"
+LTE_TEX = 10.0
+GAUSSIAN_FWHM_KMS = 2.0
+C_KMS = 299792.458
 
 
 def toy_branching_molecule():
@@ -124,6 +127,7 @@ def cn_n1_0_demo():
         )
 
     _plot_cn_n1_0(transitions, molecule, ncrit_by_upper)
+    _plot_cn_n1_0_lte_spectrum(transitions, molecule, ncrit_by_upper)
 
 
 def _plot_cn_n1_0(transitions, molecule, ncrit_by_upper):
@@ -166,6 +170,102 @@ def _plot_cn_n1_0(transitions, molecule, ncrit_by_upper):
     fig.savefig(out_path, dpi=200)
     plt.close(fig)
     print(f"\nSaved CN N=1-0 ncrit histogram: {out_path}")
+
+
+def _lte_component_weight(transition, molecule):
+    upper = molecule.levels[transition.upper_id]
+    # Optically thin LTE integrated intensity is proportional to upper population times A_ul.
+    return upper.g * np.exp(-upper.energy_K / LTE_TEX) * transition.A_s
+
+
+def _frequency_fwhm_GHz(frequency_GHz):
+    return frequency_GHz * GAUSSIAN_FWHM_KMS / C_KMS
+
+
+def _split_by_largest_frequency_gap(transitions):
+    if len(transitions) < 2:
+        return [transitions]
+    frequencies = np.array([transition.frequency_GHz for transition in transitions])
+    gaps = np.diff(frequencies)
+    split_at = int(np.argmax(gaps)) + 1
+    if gaps[split_at - 1] > 5.0 * np.median(gaps[gaps > 0]):
+        return [transitions[:split_at], transitions[split_at:]]
+    return [transitions]
+
+
+def _plot_cn_n1_0_lte_spectrum(transitions, molecule, ncrit_by_upper):
+    if not transitions:
+        return
+    cache_dir = BASE_DIR / ".plot_cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("MPLCONFIGDIR", str(cache_dir / "matplotlib"))
+    os.environ.setdefault("XDG_CACHE_HOME", str(cache_dir / "xdg"))
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    weights = np.array([_lte_component_weight(transition, molecule) for transition in transitions])
+    weights = weights / weights.max()
+    weight_by_id = {id(transition): weight for transition, weight in zip(transitions, weights)}
+    groups = _split_by_largest_frequency_gap(transitions)
+    upper_ids = sorted({transition.upper_id for transition in transitions})
+    colors = dict(zip(upper_ids, plt.cm.tab10(np.linspace(0, 1, max(len(upper_ids), 2)))[: len(upper_ids)]))
+
+    group_profiles = []
+    norm = 0.0
+    for group in groups:
+        centers = np.array([transition.frequency_GHz for transition in group])
+        max_fwhm = max(_frequency_fwhm_GHz(freq) for freq in centers)
+        frequency = np.linspace(centers.min() - 5.0 * max_fwhm, centers.max() + 5.0 * max_fwhm, 2500)
+        total = np.zeros_like(frequency)
+        components = []
+        for transition in group:
+            center = transition.frequency_GHz
+            sigma = _frequency_fwhm_GHz(center) / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+            profile = weight_by_id[id(transition)] * np.exp(-0.5 * ((frequency - center) / sigma) ** 2)
+            components.append((transition, center, profile))
+            total += profile
+        norm = max(norm, total.max())
+        group_profiles.append((frequency, total, components))
+
+    fig, axes = plt.subplots(1, len(groups), figsize=(14, 7), sharey=True, constrained_layout=True)
+    if len(groups) == 1:
+        axes = [axes]
+    for ax, (frequency, total, components) in zip(axes, group_profiles):
+        for transition, center, profile in components:
+            color = colors[transition.upper_id]
+            ax.fill_between(frequency, profile / norm, color=color, alpha=0.28)
+            ax.plot(frequency, profile / norm, color=color, lw=1.0, alpha=0.85)
+            ax.axvline(center, color=color, lw=0.8, alpha=0.65)
+        ax.plot(frequency, total / norm, color="black", lw=2.0, label="LTE optically thin sum")
+        ax.set_xlabel("Frequency (GHz)")
+        ax.grid(alpha=0.25)
+
+    handles = [plt.Line2D([0], [0], color="black", lw=2.0, label="LTE optically thin sum")]
+    for upper_id in upper_ids:
+        level = molecule.levels[upper_id]
+        ncrit = ncrit_by_upper[upper_id]["ncrit_cm-3"]
+        handles.append(
+            plt.Line2D(
+                [0],
+                [0],
+                color=colors[upper_id],
+                lw=5.0,
+                label=f"u={_short_level_label(level)}; ncrit={ncrit:.2e} cm^-3",
+            )
+        )
+    axes[-1].legend(handles=handles, fontsize=8, loc="upper right", frameon=False)
+    axes[0].set_ylabel("Normalized intensity")
+    fig.suptitle(
+        f"CN N=1-0 Gaussian LTE optically thin HFS spectrum\n"
+        f"Tex={LTE_TEX:g} K, FWHM={GAUSSIAN_FWHM_KMS:g} km s$^{{-1}}$, ncrit at Tk={CN_DEMO_TK:g} K"
+    )
+    out_path = OUTPUT_DIR / "cn_n1_0_lte_spectrum_ncrit.png"
+    fig.savefig(out_path, dpi=200)
+    plt.close(fig)
+    print(f"\nSaved CN N=1-0 LTE HFS spectrum: {out_path}")
 
 
 if __name__ == "__main__":
