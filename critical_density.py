@@ -243,6 +243,17 @@ def _transition_from_request(data, j_low=None, transition_index=None, upper=None
     return _transition_from_request(data, upper=legacy_upper, lower=legacy_lower)  # Resolve the legacy simple-rotor transition.
 
 
+def _clean_level_label(level):  # Return a compact quantum-number label for verbose reports.
+    label = level.label.strip()  # Remove padding spaces from LAMDA labels such as HCN " 01 ".
+    return label if label else f"level {level.index}"  # Fall back to the level number if the file label is empty.
+
+
+def _transition_label(data, transition):  # Build an unambiguous transition description for users.
+    upper_label = _clean_level_label(data.levels[transition.upper])  # Read the upper level quantum label.
+    lower_label = _clean_level_label(data.levels[transition.lower])  # Read the lower level quantum label.
+    return f"{upper_label}->{lower_label} (LAMDA levels {transition.upper}->{transition.lower})"  # Include both physics label and file indices.
+
+
 def ncrit(molecule, J_low=None, T=None, op_ratio=3.0, verbose=False, transition_index=None, upper=None, lower=None):  # Calculate Shirley nthin,nobg_crit.
     if T is None:  # Preserve a clear error when kinetic temperature is omitted.
         raise ValueError("T must be supplied in Kelvin.")  # Tkin is needed for interpolation and detailed balance.
@@ -253,7 +264,7 @@ def ncrit(molecule, J_low=None, T=None, op_ratio=3.0, verbose=False, transition_
         raise ValueError(f"No collisional depopulation rates found for upper level {transition.upper}.")  # Report unusable transition.
     value = transition.aul / gamma_total  # Shirley equation (4): ncrit = A_jk / sum_i gamma_ji.
     if verbose:  # Optionally print a compact report.
-        print(f"{molecule} transition {transition.upper}->{transition.lower}")  # Identify the transition by LAMDA levels.
+        print(f"{molecule} transition {_transition_label(data, transition)}")  # Identify the transition by quantum labels and LAMDA levels.
         print(f"Tkin = {float(T):.3g} K")  # Report kinetic temperature.
         print(f"ortho/para H2 ratio = {float(op_ratio):.3g}")  # Report the requested o/p ratio.
         print(f"Aul = {transition.aul:.6e} s^-1")  # Report Einstein A.

@@ -56,6 +56,7 @@ ncrit(molecule, J_low, Tkin, op_ratio, verbose)
 ```
 
 For simple linear rotors, `J_low=0` means `J=1-0`, `J_low=1` means `J=2-1`, and so on.
+Verbose output reports both the quantum-number transition and the underlying LAMDA level indices; for example, `2->1 (LAMDA levels 3->2)` is the `J=2-1` line.
 
 For spectra that are not a simple one-level-per-J ladder, such as CN, select the LAMDA radiative transition explicitly:
 

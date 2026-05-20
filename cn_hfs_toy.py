@@ -92,7 +92,7 @@ def _short_level_label(level):
     return level.label
 
 
-def cn_n1_0_demo():
+def cn_hfs_demo():
     molecule = load_hfs_molecule(CN_DATA, "CN")
     level_rows, _ = compute_hfs_ncrit(
         molecule,
@@ -102,16 +102,25 @@ def cn_n1_0_demo():
     )
     ncrit_by_upper = {row["upper_id"]: row for row in level_rows}
 
-    # Select the CN N=1 -> 0 hyperfine components and sort them by frequency.
+    for upper_N in (1, 2, 3):
+        _cn_transition_demo(upper_N, upper_N - 1, molecule, ncrit_by_upper)
+
+
+def _cn_transition_demo(upper_N, lower_N, molecule, ncrit_by_upper):
+    # Select one CN rotational ladder's hyperfine components and sort them by frequency.
     transitions = [
         transition
         for transition in molecule.radiative
-        if molecule.levels[transition.upper_id].qn.get("N") == 1
-        and molecule.levels[transition.lower_id].qn.get("N") == 0
+        if molecule.levels[transition.upper_id].qn.get("N") == upper_N
+        and molecule.levels[transition.lower_id].qn.get("N") == lower_N
     ]
     transitions.sort(key=lambda item: item.frequency_GHz)
 
-    print(f"\nCN N=1-0 HFS components at Tk={CN_DEMO_TK:g} K, partner={CN_DEMO_PARTNER}")
+    if not transitions:
+        print(f"\nCN N={upper_N}-{lower_N}: no matching HFS components in this file.")
+        return
+
+    print(f"\nCN N={upper_N}-{lower_N} HFS components at Tk={CN_DEMO_TK:g} K, partner={CN_DEMO_PARTNER}")
     print("freq_GHz  upper_id  lower_id  upper_level                  lower_level                  ncrit_cm-3")
     for transition in transitions:
         upper = molecule.levels[transition.upper_id]
@@ -126,11 +135,13 @@ def cn_n1_0_demo():
             f"{ncrit:10.3e}"
         )
 
-    _plot_cn_n1_0(transitions, molecule, ncrit_by_upper)
-    _plot_cn_n1_0_lte_spectrum(transitions, molecule, ncrit_by_upper)
+    stem = f"cn_n{upper_N}_{lower_N}"
+    title = f"CN N={upper_N}-{lower_N}"
+    _plot_cn_ncrit_hist(title, f"{stem}_ncrit_hist.png", transitions, molecule, ncrit_by_upper)
+    _plot_cn_lte_spectrum(title, f"{stem}_lte_spectrum_ncrit.png", transitions, molecule, ncrit_by_upper)
 
 
-def _plot_cn_n1_0(transitions, molecule, ncrit_by_upper):
+def _plot_cn_ncrit_hist(title, filename, transitions, molecule, ncrit_by_upper):
     cache_dir = BASE_DIR / ".plot_cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("MPLCONFIGDIR", str(cache_dir / "matplotlib"))
@@ -158,18 +169,18 @@ def _plot_cn_n1_0(transitions, molecule, ncrit_by_upper):
     bars = ax.bar(x, values, color="#4C78A8", edgecolor="#243B53", linewidth=0.7)
     ax.set_yscale("log")
     ax.set_ylabel(r"$n_{\rm crit}$ (cm$^{-3}$)")
-    ax.set_xlabel("CN N=1-0 hyperfine transition, sorted by frequency")
-    ax.set_title(f"CN N=1-0 HFS level-based critical densities at Tk={CN_DEMO_TK:g} K ({CN_DEMO_PARTNER})")
+    ax.set_xlabel(f"{title} hyperfine transition, sorted by frequency")
+    ax.set_title(f"{title} HFS level-based critical densities at Tk={CN_DEMO_TK:g} K ({CN_DEMO_PARTNER})")
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=65, ha="right", fontsize=8)
     ax.grid(axis="y", which="both", alpha=0.25)
     for bar, value in zip(bars, values):
         ax.text(bar.get_x() + bar.get_width() / 2, value * 1.05, f"{value:.1e}", ha="center", va="bottom", fontsize=8, rotation=90)
     fig.tight_layout()
-    out_path = OUTPUT_DIR / "cn_n1_0_ncrit_hist.png"
+    out_path = OUTPUT_DIR / filename
     fig.savefig(out_path, dpi=200)
     plt.close(fig)
-    print(f"\nSaved CN N=1-0 ncrit histogram: {out_path}")
+    print(f"\nSaved {title} ncrit histogram: {out_path}")
 
 
 def _lte_component_weight(transition, molecule):
@@ -193,7 +204,7 @@ def _split_by_largest_frequency_gap(transitions):
     return [transitions]
 
 
-def _plot_cn_n1_0_lte_spectrum(transitions, molecule, ncrit_by_upper):
+def _plot_cn_lte_spectrum(title, filename, transitions, molecule, ncrit_by_upper):
     if not transitions:
         return
     cache_dir = BASE_DIR / ".plot_cache"
@@ -204,6 +215,7 @@ def _plot_cn_n1_0_lte_spectrum(transitions, molecule, ncrit_by_upper):
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.ticker import FormatStrFormatter, MaxNLocator
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     weights = np.array([_lte_component_weight(transition, molecule) for transition in transitions])
@@ -241,6 +253,8 @@ def _plot_cn_n1_0_lte_spectrum(transitions, molecule, ncrit_by_upper):
             ax.axvline(center, color=color, lw=0.8, alpha=0.65)
         ax.plot(frequency, total / norm, color="black", lw=2.0, label="LTE optically thin sum")
         ax.set_xlabel("Frequency (GHz)")
+        ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
+        ax.xaxis.set_major_formatter(FormatStrFormatter("%.3f"))
         ax.grid(alpha=0.25)
 
     handles = [plt.Line2D([0], [0], color="black", lw=2.0, label="LTE optically thin sum")]
@@ -259,17 +273,17 @@ def _plot_cn_n1_0_lte_spectrum(transitions, molecule, ncrit_by_upper):
     axes[-1].legend(handles=handles, fontsize=8, loc="upper right", frameon=False)
     axes[0].set_ylabel("Normalized intensity")
     fig.suptitle(
-        f"CN N=1-0 Gaussian LTE optically thin HFS spectrum\n"
+        f"{title} Gaussian LTE optically thin HFS spectrum\n"
         f"Tex={LTE_TEX:g} K, FWHM={GAUSSIAN_FWHM_KMS:g} km s$^{{-1}}$, ncrit at Tk={CN_DEMO_TK:g} K"
     )
-    out_path = OUTPUT_DIR / "cn_n1_0_lte_spectrum_ncrit.png"
+    out_path = OUTPUT_DIR / filename
     fig.savefig(out_path, dpi=200)
     plt.close(fig)
-    print(f"\nSaved CN N=1-0 LTE HFS spectrum: {out_path}")
+    print(f"\nSaved {title} LTE HFS spectrum: {out_path}")
 
 
 if __name__ == "__main__":
     test_branching_and_collision_sums()
     test_detailed_balance_reconstructs_upward_rate()
-    cn_n1_0_demo()
+    cn_hfs_demo()
     print("toy HFS tests passed")
